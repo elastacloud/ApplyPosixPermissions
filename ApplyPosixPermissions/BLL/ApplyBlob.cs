@@ -1,8 +1,8 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
-using ApplyPosixPermissions.Interfaces;
+﻿using ApplyPosixPermissions.Interfaces;
 using Storage.Net.Blobs;
 using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace ApplyPosixPermissions.BLL
 {

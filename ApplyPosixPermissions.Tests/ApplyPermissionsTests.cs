@@ -1,8 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using ApplyPosixPermissions.BLL;
 using ApplyPosixPermissions.Interfaces;
 using ApplyPosixPermissions.Models;
@@ -11,6 +6,11 @@ using Moq;
 using NLog;
 using Storage.Net.Blobs;
 using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ApplyPosixPermissions.Tests
 {
@@ -77,7 +77,7 @@ namespace ApplyPosixPermissions.Tests
                             ObjectType = ObjectType.User
                         }
                     }
-                }                
+                }
             };
 
             var rawAccessControl = new AccessControl("$superuser", "$superuser", "rwxrwx---+",
@@ -85,7 +85,7 @@ namespace ApplyPosixPermissions.Tests
 
             var trustedAccessControl = new AccessControl("$superuser", "$superuser", "rwxrwx---+",
                 "user::rwx,user:c20047f4-79e8-4446-b441-b1ea03a8e17d:rwx,group::r-x,mask::rwx,other::---,default:user::rwx,default:user:c20047f4-79e8-4446-b441-b1ea03a8e17d:rwx,default:group::r-x,default:mask::rwx,default:other::---");
-            
+
             var file1AccessControl = new AccessControl("c20047f4-79e8-4446-b441-b1ea03a8e17d", "$superuser",
                 "rw-r-----+",
                 "user::rw-,user:c20047f4-79e8-4446-b441-b1ea03a8e17d:rwx,user:ea6be951-d694-4b49-bd5c-fef06e7b9a59:rwx,group::r-x,mask::r--,other::---");
@@ -135,7 +135,7 @@ namespace ApplyPosixPermissions.Tests
             _azureDataLakeGen2BlobStorage
                 .Setup(x => x.ListAsync(It.Is<ListOptions>(y => y.FolderPath == "trusted/directory"),
                     It.IsAny<CancellationToken>()))
-                .Returns(Task.FromResult((IReadOnlyCollection<Blob>) new List<Blob>
+                .Returns(Task.FromResult((IReadOnlyCollection<Blob>)new List<Blob>
                 {
                     new Blob("trusted/directory/file1.parquet"),
                     new Blob("trusted/directory/file2.parquet"),
@@ -145,7 +145,7 @@ namespace ApplyPosixPermissions.Tests
             _azureDataLakeGen2BlobStorage
                 .Setup(x => x.ListAsync(It.Is<ListOptions>(y => y.FolderPath != "trusted/directory"),
                     It.IsAny<CancellationToken>()))
-                .Returns(Task.FromResult((IReadOnlyCollection<Blob>) new List<Blob>()));
+                .Returns(Task.FromResult((IReadOnlyCollection<Blob>)new List<Blob>()));
 
             _logger = new Mock<ILogger>();
             _sut = new ApplyPermissions(_azureDataLakeGen2BlobStorage.Object, _logger.Object);

@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 
 namespace ApplyPosixPermissions.Wrappers
 {
-    internal class RetryableAzureDataLakeGen2BlobStorageWrapper : IAzureDataLakeGen2BlobStorageWrapper
+    public class RetryableAzureDataLakeGen2BlobStorageWrapper : IAzureDataLakeGen2BlobStorageWrapper
     {
-        private IAzureDataLakeGen2BlobStorageWrapper _storage;
+        private readonly IAzureDataLakeGen2BlobStorageWrapper _storage;
         private const int Retries = 3;
         private const int Delay = 1000;
 
@@ -25,15 +25,16 @@ namespace ApplyPosixPermissions.Wrappers
                 try
                 {
                     await _storage.CreateFilesystemAsync(filesystem);
+                    break;
                 }
                 catch (Exception e)
                 {
-                    if (i < Retries)
+                    if (i == Retries)
                     {
-                        await Task.Delay(Delay * i);
+                        throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", e);
                     }
 
-                    throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", e);
+                    await Task.Delay(Delay * i);
                 }
             }
         }
@@ -45,15 +46,16 @@ namespace ApplyPosixPermissions.Wrappers
                 try
                 {
                     await _storage.CreateFolderAsync(folderPath, dummyFileName, cancellationToken);
+                    break;
                 }
                 catch (Exception e)
                 {
-                    if (i < Retries)
+                    if (i == Retries)
                     {
-                        await Task.Delay(Delay * i);
+                        throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", e);
                     }
 
-                    throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", e);
+                    await Task.Delay(Delay * i);
                 }
             }
         }
@@ -69,12 +71,14 @@ namespace ApplyPosixPermissions.Wrappers
                 }
                 catch (Exception e)
                 {
-                    if (i < Retries)
+                    if (i == Retries)
+                    {
+                        inner = e;
+                    }
+                    else
                     {
                         await Task.Delay(Delay * i);
                     }
-
-                    inner = e;
                 }
             }
 
@@ -92,12 +96,14 @@ namespace ApplyPosixPermissions.Wrappers
                 }
                 catch (Exception e)
                 {
-                    if (i < Retries)
+                    if (i == Retries)
+                    {
+                        inner = e;
+                    }
+                    else
                     {
                         await Task.Delay(Delay * i);
                     }
-
-                    inner = e;
                 }
             }
 
@@ -115,12 +121,14 @@ namespace ApplyPosixPermissions.Wrappers
                 }
                 catch (Exception e)
                 {
-                    if (i < Retries)
+                    if (i == Retries)
+                    {
+                        inner = e;
+                    }
+                    else
                     {
                         await Task.Delay(Delay * i);
                     }
-
-                    inner = e;
                 }
             }
 
@@ -138,12 +146,14 @@ namespace ApplyPosixPermissions.Wrappers
                 }
                 catch (Exception e)
                 {
-                    if (i < Retries)
+                    if (i == Retries)
+                    {
+                        inner = e;
+                    }
+                    else
                     {
                         await Task.Delay(Delay * i);
                     }
-
-                    inner = e;
                 }
             }
 
@@ -157,15 +167,16 @@ namespace ApplyPosixPermissions.Wrappers
                 try
                 {
                     await _storage.SetAccessControlAsync(fullPath, accessControl);
+                    break;
                 }
                 catch (Exception e)
                 {
-                    if (i < Retries)
+                    if (i == Retries)
                     {
-                        await Task.Delay(Delay * i);
+                        throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", e);
                     }
 
-                    throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", e);
+                    await Task.Delay(Delay * i);
                 }
             }
         }

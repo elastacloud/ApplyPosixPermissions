@@ -1,12 +1,12 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using ApplyPosixPermissions.Interfaces;
+﻿using ApplyPosixPermissions.Interfaces;
 using ApplyPosixPermissions.Models;
 using NLog;
 using Storage.Net.Blobs;
 using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ApplyPosixPermissions.BLL
 {
@@ -41,7 +41,7 @@ namespace ApplyPosixPermissions.BLL
             {
                 await CreateDirectoryIfNotExistsAsync();
             }
-            
+
             await GetActualAclsAsync();
             GetExpectedAcls();
             GetDifferenceAcls();
@@ -134,20 +134,20 @@ namespace ApplyPosixPermissions.BLL
             }));
 
             var additionalExpected = from e in expected
-                join a in actual
-                    on new {e.Default, e.Acl}
-                    equals new {a.Default, a.Acl } into lja
-                from a in lja.DefaultIfEmpty()
-                where a == null
-                select e;
+                                     join a in actual
+                                         on new { e.Default, e.Acl }
+                                         equals new { a.Default, a.Acl } into lja
+                                     from a in lja.DefaultIfEmpty()
+                                     where a == null
+                                     select e;
 
             var additionalActual = from a in actual
-                join e in expected
-                    on new {a.Default, a.Acl}
-                    equals new {e.Default, e.Acl} into lje
-                from e in lje.DefaultIfEmpty()
-                where e == null
-                select a;
+                                   join e in expected
+                                       on new { a.Default, a.Acl }
+                                       equals new { e.Default, e.Acl } into lje
+                                   from e in lje.DefaultIfEmpty()
+                                   where e == null
+                                   select a;
 
             var differences = additionalExpected.Union(additionalActual);
 

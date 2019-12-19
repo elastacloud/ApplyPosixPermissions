@@ -1,14 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using ApplyPosixPermissions.Interfaces;
+﻿using ApplyPosixPermissions.Interfaces;
 using ApplyPosixPermissions.Models;
 using ApplyPosixPermissions.Wrappers;
 using NLog;
 using Storage.Net;
 using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ApplyPosixPermissions.BLL
 {

@@ -1,12 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using ApplyPosixPermissions.BLL;
+using ApplyPosixPermissions.Models;
+using CommandLine;
+using Newtonsoft.Json;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
-using ApplyPosixPermissions.BLL;
-using ApplyPosixPermissions.Models;
-using CommandLine;
-using Newtonsoft.Json;
 
 namespace ApplyPosixPermissions
 {
@@ -17,7 +17,7 @@ namespace ApplyPosixPermissions
             Parser.Default.ParseArguments<CommandLineOptions>(args)
                 .WithParsed(o =>
                 {
-                    if (o.DefaultConnectionLimit != null) 
+                    if (o.DefaultConnectionLimit != null)
                     {
                         ServicePointManager.DefaultConnectionLimit = o.DefaultConnectionLimit.Value;
                     }
