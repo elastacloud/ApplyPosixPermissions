@@ -1,6 +1,7 @@
 ﻿using ApplyPosixPermissions.Interfaces;
 using Storage.Net.Blobs;
-using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using Storage.Net.Microsoft.Azure.Storage.Blobs;
+using Storage.Net.Microsoft.Azure.Storage.Blobs.Gen2.Model;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -8,16 +9,22 @@ using System.Threading.Tasks;
 
 namespace ApplyPosixPermissions.Wrappers
 {
-    public class RetryableAzureDataLakeGen2BlobStorageWrapper : IAzureDataLakeGen2BlobStorageWrapper
+    public class RetryableAzureDataLakeStorageWrapper : IAzureDataLakeStorageWrapper
     {
-        private readonly IAzureDataLakeGen2BlobStorageWrapper _storage;
+        private readonly IAzureDataLakeStorageWrapper _storage;
         private const int Retries = 3;
         private const int Delay = 1000;
 
-        public RetryableAzureDataLakeGen2BlobStorageWrapper(IAzureDataLakeGen2BlobStorageWrapper storage)
+        public RetryableAzureDataLakeStorageWrapper(IAzureDataLakeStorage storage) : this(new AzureDataLakeStorageWrapper(storage))
+        {
+
+        }
+
+        public RetryableAzureDataLakeStorageWrapper(IAzureDataLakeStorageWrapper storage)
         {
             _storage = storage;
         }
+
         public async Task CreateFilesystemAsync(string filesystem)
         {
             for (var i = 1; i <= Retries; i++)
@@ -85,7 +92,8 @@ namespace ApplyPosixPermissions.Wrappers
             throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", inner);
         }
 
-        public async Task<AccessControl> GetAccessControlAsync(string fullPath, bool getUpn = false)
+        public async Task<AccessControl> GetAccessControlAsync(string fullPath, bool getUpn = false,
+            CancellationToken cancellationToken = default)
         {
             Exception inner = null;
             for (var i = 1; i <= Retries; i++)
@@ -135,7 +143,7 @@ namespace ApplyPosixPermissions.Wrappers
             throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", inner);
         }
 
-        public async Task<IEnumerable<string>> ListFilesystemsAsync()
+        public async Task<IReadOnlyCollection<Filesystem>> ListFilesystemsAsync(CancellationToken cancellationToken = default)
         {
             Exception inner = null;
             for (var i = 1; i <= Retries; i++)
@@ -160,7 +168,8 @@ namespace ApplyPosixPermissions.Wrappers
             throw new ApplicationException($"Maximum {Retries} retries exceeded for request.", inner);
         }
 
-        public async Task SetAccessControlAsync(string fullPath, AccessControl accessControl)
+        public async Task SetAccessControlAsync(string fullPath, AccessControl accessControl,
+            CancellationToken cancellationToken = default)
         {
             for (var i = 1; i <= Retries; i++)
             {

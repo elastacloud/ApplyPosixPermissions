@@ -1,18 +1,18 @@
 ﻿using ApplyPosixPermissions.Interfaces;
 using Storage.Net.Blobs;
-using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2;
-using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using Storage.Net.Microsoft.Azure.Storage.Blobs;
+using Storage.Net.Microsoft.Azure.Storage.Blobs.Gen2.Model;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace ApplyPosixPermissions.Wrappers
 {
-    internal class AzureDataLakeGen2BlobStorageWrapper : IAzureDataLakeGen2BlobStorageWrapper
+    internal class AzureDataLakeStorageWrapper : IAzureDataLakeStorageWrapper
     {
-        private readonly IAzureDataLakeGen2BlobStorage _storage;
+        private readonly IAzureDataLakeStorage _storage;
 
-        public AzureDataLakeGen2BlobStorageWrapper(IAzureDataLakeGen2BlobStorage storage)
+        public AzureDataLakeStorageWrapper(IAzureDataLakeStorage storage)
         {
             _storage = storage;
         }
@@ -33,9 +33,10 @@ namespace ApplyPosixPermissions.Wrappers
             return _storage.ExistsAsync(fullPath, cancellationToken);
         }
 
-        public Task<AccessControl> GetAccessControlAsync(string fullPath, bool getUpn = false)
+        public Task<AccessControl> GetAccessControlAsync(string fullPath, bool getUpn = false,
+            CancellationToken cancellationToken = default)
         {
-            return _storage.GetAccessControlAsync(fullPath, getUpn);
+            return _storage.GetAccessControlAsync(fullPath, getUpn, cancellationToken);
         }
 
         public Task<IReadOnlyCollection<Blob>> ListAsync(ListOptions options = null,
@@ -44,14 +45,15 @@ namespace ApplyPosixPermissions.Wrappers
             return _storage.ListAsync(options, cancellationToken);
         }
 
-        public Task<IEnumerable<string>> ListFilesystemsAsync()
+        public Task<IReadOnlyCollection<Filesystem>> ListFilesystemsAsync(CancellationToken cancellationToken = default)
         {
-            return _storage.ListFilesystemsAsync();
+            return _storage.ListFilesystemsAsync(cancellationToken);
         }
 
-        public Task SetAccessControlAsync(string fullPath, AccessControl accessControl)
+        public Task SetAccessControlAsync(string fullPath, AccessControl accessControl,
+            CancellationToken cancellationToken = default)
         {
-            return _storage.SetAccessControlAsync(fullPath, accessControl);
+            return _storage.SetAccessControlAsync(fullPath, accessControl, cancellationToken);
         }
     }
 }

@@ -2,7 +2,7 @@
 using ApplyPosixPermissions.Models;
 using NLog;
 using Storage.Net.Blobs;
-using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using Storage.Net.Microsoft.Azure.Storage.Blobs.Gen2.Model;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -16,13 +16,13 @@ namespace ApplyPosixPermissions.BLL
         private readonly CancellationToken _cancellationToken;
         private readonly DataLakeDirectory _directory;
         private readonly ILogger _logger;
-        private readonly IAzureDataLakeGen2BlobStorageWrapper _storage;
+        private readonly IAzureDataLakeStorageWrapper _storage;
         private AccessControl _accessControl;
         private IEnumerable<AclEntry> _expectedAcls;
         private IEnumerable<AclEntry> _expectedDefaultAcls;
         private bool _isDifferent;
 
-        public ApplyDirectory(IAzureDataLakeGen2BlobStorageWrapper storage, ILogger logger, DataLakeDirectory directory,
+        public ApplyDirectory(IAzureDataLakeStorageWrapper storage, ILogger logger, DataLakeDirectory directory,
             CancellationToken cancellationToken)
         {
             _storage = storage;
@@ -57,9 +57,9 @@ namespace ApplyPosixPermissions.BLL
 
         private async Task CreateFilesystemIfNotExistsAsync()
         {
-            var filesystems = await _storage.ListFilesystemsAsync();
+            var filesystems = await _storage.ListFilesystemsAsync(_cancellationToken);
 
-            if (filesystems.Any(x => x == _directory.Path))
+            if (filesystems.Any(x => x.Name == _directory.Path))
             {
                 _logger.Info($"{_directory.Path} - Exists.");
             }
@@ -85,7 +85,7 @@ namespace ApplyPosixPermissions.BLL
 
         private async Task GetActualAclsAsync()
         {
-            _accessControl = await _storage.GetAccessControlAsync(_directory.Path, _directory.Upn);
+            _accessControl = await _storage.GetAccessControlAsync(_directory.Path, _directory.Upn, _cancellationToken);
 
             _logger.Info(
                 $"{_directory.Path} - Actual: {string.Join(',', _accessControl.Acl.Select(x => x.ToString()))}.");
@@ -174,7 +174,7 @@ namespace ApplyPosixPermissions.BLL
                 _accessControl.DefaultAcl.Add(acl);
             }
 
-            await _storage.SetAccessControlAsync(_directory.Path, _accessControl);
+            await _storage.SetAccessControlAsync(_directory.Path, _accessControl, _cancellationToken);
         }
 
         private async Task ProcessFilesAsync()
@@ -192,7 +192,7 @@ namespace ApplyPosixPermissions.BLL
                 .Select(x => x.Select(y =>
                 {
                     _logger.Info($"{_directory.Path} - Applying to file: {y.Item.FullPath}.");
-                    return new ApplyBlob(_storage, y.Item, _expectedAcls, _expectedDefaultAcls, _directory.Upn).ProcessAsync();
+                    return new ApplyBlob(_storage, y.Item, _expectedAcls, _expectedDefaultAcls, _directory.Upn, _cancellationToken).ProcessAsync();
                 }));
 
             foreach (var batch in batches)

@@ -4,7 +4,7 @@
 # https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
 
 trigger:
-- master
+- none
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -14,10 +14,16 @@ variables:
   major: '1'
   minor: '1'
   patch: '0'
+  assemblyFileVersion: ''
 
-name: $(major).$(minor).$(Year:yy)$(DayOfYear)$(Rev:.r)
+name: $(Build.DefinitionName)_v$(major).$(minor).$(Year:yy)$(DayOfYear)$(Rev:.r)
 
 steps:
+- powershell: |
+   $AssemblyFileVersion = ("$(build.buildNumber)" -split "_v")[1]
+   Write-Host "##vso[task.setvariable variable=assemblyFileVersion]$AssemblyFileVersion"
+  displayName: 'Create AssemblyFileVersion'
+
 - task: DotNetCoreCLI@2
   displayName: Restore
   inputs:
@@ -45,7 +51,7 @@ steps:
     projects: |
      **/*.csproj
      !**/*[Tt]ests/*.csproj
-    arguments: '--configuration $(buildConfiguration) --output $(build.artifactstagingdirectory) --self-contained --runtime win-x64 /p:Version=$(major).$(minor).$(patch);InformationalVersion=$(major).$(minor).$(patch);FileVersion=$(build.buildNumber)'
+    arguments: '--configuration $(buildConfiguration) --output $(build.artifactstagingdirectory) --self-contained --runtime win-x64 /p:Version=$(major).$(minor).$(patch);InformationalVersion=$(major).$(minor).$(patch);FileVersion=$(assemblyFileVersion)'
     zipAfterPublish: false
 
 - task: PublishBuildArtifacts@1

@@ -3,7 +3,7 @@ using ApplyPosixPermissions.Wrappers;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using Storage.Net.Blobs;
-using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using Storage.Net.Microsoft.Azure.Storage.Blobs.Gen2.Model;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -14,23 +14,23 @@ namespace ApplyPosixPermissions.Tests
     [TestClass]
     public class RetryableAzureDataLakeGen2BlobStorageWrapperTests
     {
-        private Mock<IAzureDataLakeGen2BlobStorageWrapper> _client;
-        private RetryableAzureDataLakeGen2BlobStorageWrapper _sut;
+        private Mock<IAzureDataLakeStorageWrapper> _client;
+        private RetryableAzureDataLakeStorageWrapper _sut;
 
         [TestInitialize]
         public void Setup()
         {
-            _client = new Mock<IAzureDataLakeGen2BlobStorageWrapper>();
+            _client = new Mock<IAzureDataLakeStorageWrapper>();
             _client.Setup(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(true));
-            _client.Setup(x => x.GetAccessControlAsync(It.IsAny<string>(), It.IsAny<bool>()))
+            _client.Setup(x => x.GetAccessControlAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(new AccessControl("$superuser", "$superuser", "rwxr-x---", "user::rwx,group::r-x,other::---")));
             _client.Setup(x => x.ListAsync(It.IsAny<ListOptions>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult((IReadOnlyCollection<Blob>)new List<Blob>()));
-            _client.Setup(x => x.ListFilesystemsAsync())
-                .Returns(Task.FromResult((IEnumerable<string>)new List<string>()));
+            _client.Setup(x => x.ListFilesystemsAsync(It.IsAny<CancellationToken>()))
+                .Returns(Task.FromResult((IReadOnlyCollection<Filesystem>)new List<Filesystem>()));
 
-            _sut = new RetryableAzureDataLakeGen2BlobStorageWrapper(_client.Object);
+            _sut = new RetryableAzureDataLakeStorageWrapper(_client.Object);
         }
 
         [TestMethod]
@@ -143,7 +143,7 @@ namespace ApplyPosixPermissions.Tests
         public async Task TestGetAccessControlAsyncCallsInner()
         {
             await _sut.GetAccessControlAsync("folderPath", true);
-            _client.Verify(x => x.GetAccessControlAsync("folderPath", true), Times.Once);
+            _client.Verify(x => x.GetAccessControlAsync("folderPath", true, It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [TestMethod]
@@ -156,7 +156,7 @@ namespace ApplyPosixPermissions.Tests
         [TestMethod]
         public async Task TestGetAccessControlAsyncRetriesThreeTimes()
         {
-            _client.Setup(x => x.GetAccessControlAsync(It.IsAny<string>(), It.IsAny<bool>()))
+            _client.Setup(x => x.GetAccessControlAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
                 .Throws(new ApplicationException("Test"));
 
             try
@@ -168,13 +168,13 @@ namespace ApplyPosixPermissions.Tests
 
             }
 
-            _client.Verify(x => x.GetAccessControlAsync("folderPath", true), Times.Exactly(3));
+            _client.Verify(x => x.GetAccessControlAsync("folderPath", true, It.IsAny<CancellationToken>()), Times.Exactly(3));
         }
 
         [TestMethod]
         public async Task TestGetAccessControlAsyncBubblesException()
         {
-            _client.Setup(x => x.GetAccessControlAsync(It.IsAny<string>(), It.IsAny<bool>()))
+            _client.Setup(x => x.GetAccessControlAsync(It.IsAny<string>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
                 .Throws(new ApplicationException("Test"));
 
             await Assert.ThrowsExceptionAsync<ApplicationException>(() => _sut.GetAccessControlAsync("folderPath"), "Test");
@@ -228,7 +228,7 @@ namespace ApplyPosixPermissions.Tests
         public async Task TestListFilesystemsAsyncCallsInner()
         {
             await _sut.ListFilesystemsAsync();
-            _client.Verify(x => x.ListFilesystemsAsync(), Times.Once);
+            _client.Verify(x => x.ListFilesystemsAsync(It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [TestMethod]
@@ -241,7 +241,7 @@ namespace ApplyPosixPermissions.Tests
         [TestMethod]
         public async Task TestListFilesystemsAsyncRetriesThreeTimes()
         {
-            _client.Setup(x => x.ListFilesystemsAsync())
+            _client.Setup(x => x.ListFilesystemsAsync(It.IsAny<CancellationToken>()))
                 .Throws(new ApplicationException("Test"));
 
             try
@@ -253,13 +253,13 @@ namespace ApplyPosixPermissions.Tests
 
             }
 
-            _client.Verify(x => x.ListFilesystemsAsync(), Times.Exactly(3));
+            _client.Verify(x => x.ListFilesystemsAsync(It.IsAny<CancellationToken>()), Times.Exactly(3));
         }
 
         [TestMethod]
         public async Task TestListFilesystemsAsyncBubblesException()
         {
-            _client.Setup(x => x.ListFilesystemsAsync())
+            _client.Setup(x => x.ListFilesystemsAsync(It.IsAny<CancellationToken>()))
                 .Throws(new ApplicationException("Test"));
 
             await Assert.ThrowsExceptionAsync<ApplicationException>(() => _sut.ListFilesystemsAsync());
@@ -270,13 +270,13 @@ namespace ApplyPosixPermissions.Tests
         {
             var expected = new AccessControl("$superuser", "$superuser", "rwxr-x---", "user::rwx,group::r-x,other::---");
             await _sut.SetAccessControlAsync("fullPath", expected);
-            _client.Verify(x => x.SetAccessControlAsync("fullPath", expected), Times.Once);
+            _client.Verify(x => x.SetAccessControlAsync("fullPath", expected, It.IsAny<CancellationToken>()), Times.Once);
         }
 
         [TestMethod]
         public async Task TestSetAccessControlAsyncRetriesThreeTimes()
         {
-            _client.Setup(x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>()))
+            _client.Setup(x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>(), It.IsAny<CancellationToken>()))
                 .Throws(new ApplicationException("Test"));
 
             var expected = new AccessControl("$superuser", "$superuser", "rwxr-x---", "user::rwx,group::r-x,other::---");
@@ -290,13 +290,13 @@ namespace ApplyPosixPermissions.Tests
 
             }
 
-            _client.Verify(x => x.SetAccessControlAsync("fullPath", expected), Times.Exactly(3));
+            _client.Verify(x => x.SetAccessControlAsync("fullPath", expected, It.IsAny<CancellationToken>()), Times.Exactly(3));
         }
 
         [TestMethod]
         public async Task TestSetAccessControlAsyncBubblesException()
         {
-            _client.Setup(x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>()))
+            _client.Setup(x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>(), It.IsAny<CancellationToken>()))
                 .Throws(new ApplicationException("Test"));
 
             var accessControl = new AccessControl("$superuser", "$superuser", "rwxr-x---", "user::rwx,group::r-x,other::---");

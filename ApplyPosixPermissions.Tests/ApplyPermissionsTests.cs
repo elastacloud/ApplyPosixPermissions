@@ -5,7 +5,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 using NLog;
 using Storage.Net.Blobs;
-using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2.Model;
+using Storage.Net.Microsoft.Azure.Storage.Blobs.Gen2.Model;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,7 +17,7 @@ namespace ApplyPosixPermissions.Tests
     [TestClass]
     public class ApplyPermissionsTests
     {
-        private Mock<IAzureDataLakeGen2BlobStorageWrapper> _azureDataLakeGen2BlobStorage;
+        private Mock<IAzureDataLakeStorageWrapper> _azureDataLakeStorage;
         private List<DataLakeDirectory> _directories;
         private Mock<ILogger> _logger;
         private ApplyPermissions _sut;
@@ -99,40 +99,42 @@ namespace ApplyPosixPermissions.Tests
 
             var newAccessControl = new AccessControl("$superuser", "$superuser", "rwxr-x---", "user::rwx,group::r-x,other::---");
 
-            _azureDataLakeGen2BlobStorage = new Mock<IAzureDataLakeGen2BlobStorageWrapper>();
+            _azureDataLakeStorage = new Mock<IAzureDataLakeStorageWrapper>();
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ExistsAsync("raw/directory", It.IsAny<CancellationToken>()))
+            _azureDataLakeStorage.Setup(x => x.ExistsAsync("raw/directory", It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(true));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ExistsAsync("trusted/directory", It.IsAny<CancellationToken>()))
+            _azureDataLakeStorage.Setup(x => x.ExistsAsync("trusted/directory", It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(true));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ListFilesystemsAsync())
-                .Returns(Task.FromResult(new List<string> { "new" }.AsEnumerable()));
+            _azureDataLakeStorage.Setup(x => x.ListFilesystemsAsync(It.IsAny<CancellationToken>()))
+                .Returns(Task.FromResult(
+                    (IReadOnlyCollection<Filesystem>)new List<Filesystem> { new Filesystem { Name = "new" } })
+                );
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("raw/directory", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("raw/directory", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(rawAccessControl));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("trusted/directory", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("trusted/directory", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(trustedAccessControl));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("trusted/directory/file1.parquet", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("trusted/directory/file1.parquet", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(file1AccessControl));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("trusted/directory/file2.parquet", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("trusted/directory/file2.parquet", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(file2AccessControl));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("trusted/directory/subdirectory", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("trusted/directory/subdirectory", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(subDirectoryAccessControl));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("new", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("new", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(newAccessControl));
 
-            _azureDataLakeGen2BlobStorage
-                .Setup(x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>()))
+            _azureDataLakeStorage
+                .Setup(x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>(), It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask);
 
-            _azureDataLakeGen2BlobStorage
+            _azureDataLakeStorage
                 .Setup(x => x.ListAsync(It.Is<ListOptions>(y => y.FolderPath == "trusted/directory"),
                     It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult((IReadOnlyCollection<Blob>)new List<Blob>
@@ -142,13 +144,13 @@ namespace ApplyPosixPermissions.Tests
                     new Blob("trusted/directory/subdirectory", BlobItemKind.Folder)
                 }));
 
-            _azureDataLakeGen2BlobStorage
+            _azureDataLakeStorage
                 .Setup(x => x.ListAsync(It.Is<ListOptions>(y => y.FolderPath != "trusted/directory"),
                     It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult((IReadOnlyCollection<Blob>)new List<Blob>()));
 
             _logger = new Mock<ILogger>();
-            _sut = new ApplyPermissions(_azureDataLakeGen2BlobStorage.Object, _logger.Object);
+            _sut = new ApplyPermissions(_azureDataLakeStorage.Object, _logger.Object);
         }
 
         [TestMethod]
@@ -156,7 +158,7 @@ namespace ApplyPosixPermissions.Tests
         {
             await _sut.ProcessAsync(_directories);
             _directories.ForEach(x =>
-                _azureDataLakeGen2BlobStorage.Verify(y => y.ExistsAsync(x.Path, It.IsAny<CancellationToken>()))
+                _azureDataLakeStorage.Verify(y => y.ExistsAsync(x.Path, It.IsAny<CancellationToken>()))
             );
         }
 
@@ -165,7 +167,7 @@ namespace ApplyPosixPermissions.Tests
         {
             await _sut.ProcessAsync(_directories);
             _directories.ForEach(x =>
-                _azureDataLakeGen2BlobStorage.Verify(
+                _azureDataLakeStorage.Verify(
                     y => y.CreateFolderAsync(x.Path, null, It.IsAny<CancellationToken>()), Times.Never)
             );
         }
@@ -173,19 +175,19 @@ namespace ApplyPosixPermissions.Tests
         [TestMethod]
         public async Task TestCreatesDirectoryIfNotExists()
         {
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ExistsAsync("trusted/directory", It.IsAny<CancellationToken>()))
+            _azureDataLakeStorage.Setup(x => x.ExistsAsync("trusted/directory", It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(false));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("trusted/directory", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("trusted/directory", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(new AccessControl("$superuser", "$superuser", "rwxr-x---",
                     "user::rwx,group::r-x,other::---")));
 
             await _sut.ProcessAsync(_directories);
 
-            _azureDataLakeGen2BlobStorage.Verify(
+            _azureDataLakeStorage.Verify(
                 x => x.CreateFolderAsync("raw/directory", null, It.IsAny<CancellationToken>()), Times.Never);
 
-            _azureDataLakeGen2BlobStorage.Verify(
+            _azureDataLakeStorage.Verify(
                 x => x.CreateFolderAsync("trusted/directory", null, It.IsAny<CancellationToken>()), Times.Once);
         }
 
@@ -203,7 +205,7 @@ namespace ApplyPosixPermissions.Tests
                 }
             });
 
-            _azureDataLakeGen2BlobStorage.Verify(y => y.ListFilesystemsAsync());
+            _azureDataLakeStorage.Verify(y => y.ListFilesystemsAsync(It.IsAny<CancellationToken>()));
         }
 
         [TestMethod]
@@ -220,14 +222,14 @@ namespace ApplyPosixPermissions.Tests
                 }
             });
 
-            _azureDataLakeGen2BlobStorage.Verify(y => y.CreateFilesystemAsync("new"), Times.Never);
+            _azureDataLakeStorage.Verify(y => y.CreateFilesystemAsync("new"), Times.Never);
         }
 
         [TestMethod]
         public async Task TestCreatesFilesystemIfNotExists()
         {
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ListFilesystemsAsync())
-                .Returns(Task.FromResult(new List<string>().AsEnumerable()));
+            _azureDataLakeStorage.Setup(x => x.ListFilesystemsAsync(It.IsAny<CancellationToken>()))
+                .Returns(Task.FromResult((IReadOnlyCollection<Filesystem>)new List<Filesystem>().AsEnumerable()));
 
             await _sut.ProcessAsync(new List<DataLakeDirectory>
             {
@@ -240,22 +242,22 @@ namespace ApplyPosixPermissions.Tests
                 }
             });
 
-            _azureDataLakeGen2BlobStorage.Verify(y => y.CreateFilesystemAsync("new"), Times.Once);
+            _azureDataLakeStorage.Verify(y => y.CreateFilesystemAsync("new"), Times.Once);
         }
 
         [TestMethod]
         public async Task TestDoesNotUpdateDirectoryIfNoDifferencesDetected()
         {
             await _sut.ProcessAsync(_directories);
-            _azureDataLakeGen2BlobStorage.Verify(
-                x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>()), Times.Never);
+            _azureDataLakeStorage.Verify(
+                x => x.SetAccessControlAsync(It.IsAny<string>(), It.IsAny<AccessControl>(), It.IsAny<CancellationToken>()), Times.Never);
         }
 
         [TestMethod]
         public async Task TestDoesNotUpdateFilesIfNoDifferencesDetected()
         {
             await _sut.ProcessAsync(_directories);
-            _azureDataLakeGen2BlobStorage.Verify(
+            _azureDataLakeStorage.Verify(
                 x => x.ListAsync(It.IsAny<ListOptions>(), It.IsAny<CancellationToken>()), Times.Never);
         }
 
@@ -278,34 +280,40 @@ namespace ApplyPosixPermissions.Tests
 
             _directories.First(x => x.Path == "trusted/directory").Acls.ForEach(x =>
             {
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
                         It.Is<AccessControl>(z =>
-                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanRead == x.DefaultRead)),
+                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanRead == x.DefaultRead),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
                         It.Is<AccessControl>(z =>
-                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanWrite == x.DefaultWrite)),
+                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanWrite == x.DefaultWrite),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory",
                         It.Is<AccessControl>(z =>
-                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanExecute == x.DefaultExecute)),
+                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanExecute == x.DefaultExecute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
             });
         }
@@ -327,15 +335,15 @@ namespace ApplyPosixPermissions.Tests
 
             await _sut.ProcessAsync(_directories);
 
-            _azureDataLakeGen2BlobStorage.Verify(x =>
+            _azureDataLakeStorage.Verify(x =>
                 x.ListAsync(It.Is<ListOptions>(y => y.FolderPath == "trusted/directory"),
                     It.IsAny<CancellationToken>()), Times.Once);
 
-            _azureDataLakeGen2BlobStorage.Verify(x =>
+            _azureDataLakeStorage.Verify(x =>
                 x.ListAsync(It.Is<ListOptions>(y => y.MaxResults == int.MaxValue),
                     It.IsAny<CancellationToken>()), Times.Once);
 
-            _azureDataLakeGen2BlobStorage.Verify(x =>
+            _azureDataLakeStorage.Verify(x =>
                 x.ListAsync(It.Is<ListOptions>(y => y.Recurse),
                     It.IsAny<CancellationToken>()), Times.Once);
         }
@@ -357,9 +365,9 @@ namespace ApplyPosixPermissions.Tests
 
             await _sut.ProcessAsync(_directories);
 
-            _azureDataLakeGen2BlobStorage.Verify(x => x.GetAccessControlAsync("trusted/directory/file1.parquet", true),
+            _azureDataLakeStorage.Verify(x => x.GetAccessControlAsync("trusted/directory/file1.parquet", true, It.IsAny<CancellationToken>()),
                 Times.Once);
-            _azureDataLakeGen2BlobStorage.Verify(x => x.GetAccessControlAsync("trusted/directory/file2.parquet", true),
+            _azureDataLakeStorage.Verify(x => x.GetAccessControlAsync("trusted/directory/file2.parquet", true, It.IsAny<CancellationToken>()),
                 Times.Once);
         }
 
@@ -382,34 +390,40 @@ namespace ApplyPosixPermissions.Tests
 
             _directories.First(x => x.Path == "trusted/directory").Acls.ForEach(x =>
             {
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
             });
         }
@@ -433,11 +447,11 @@ namespace ApplyPosixPermissions.Tests
 
             _directories.First(x => x.Path == "trusted/directory").Acls.ForEach(x =>
             {
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
-                    It.Is<AccessControl>(z => !z.DefaultAcl.Any())), Times.Once);
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
+                    It.Is<AccessControl>(z => !z.DefaultAcl.Any()), It.IsAny<CancellationToken>()), Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
-                    It.Is<AccessControl>(z => !z.DefaultAcl.Any())), Times.Once);
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
+                    It.Is<AccessControl>(z => !z.DefaultAcl.Any()), It.IsAny<CancellationToken>()), Times.Once);
             });
         }
 
@@ -460,19 +474,22 @@ namespace ApplyPosixPermissions.Tests
 
             _directories.First(x => x.Path == "trusted/directory").Acls.ForEach(x =>
             {
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
             });
         }
@@ -496,19 +513,22 @@ namespace ApplyPosixPermissions.Tests
 
             _directories.First(x => x.Path == "trusted/directory").Acls.ForEach(x =>
             {
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
                         It.Is<AccessControl>(z =>
-                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanRead == x.DefaultRead)),
+                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanRead == x.DefaultRead),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
                         It.Is<AccessControl>(z =>
-                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanWrite == x.DefaultWrite)),
+                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanWrite == x.DefaultWrite),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/subdirectory",
                         It.Is<AccessControl>(z =>
-                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanExecute == x.DefaultExecute)),
+                            z.DefaultAcl.First(a => a.Identity == x.Identity).CanExecute == x.DefaultExecute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
             });
         }
@@ -522,34 +542,40 @@ namespace ApplyPosixPermissions.Tests
 
             _directories.First(x => x.Path == "trusted/directory").Acls.ForEach(x =>
             {
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file1.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanRead == x.Read),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanWrite == x.Write),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
 
-                _azureDataLakeGen2BlobStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
+                _azureDataLakeStorage.Verify(y => y.SetAccessControlAsync("trusted/directory/file2.parquet",
                         It.Is<AccessControl>(z =>
-                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute)),
+                            z.Acl.First(a => a.Identity == x.Identity).CanExecute == x.Execute),
+                        It.IsAny<CancellationToken>()),
                     Times.Once);
             });
         }
@@ -565,10 +591,10 @@ namespace ApplyPosixPermissions.Tests
         [TestMethod]
         public async Task TestLogCreatesDirectoryIfNotExists()
         {
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ExistsAsync("trusted/directory", It.IsAny<CancellationToken>()))
+            _azureDataLakeStorage.Setup(x => x.ExistsAsync("trusted/directory", It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(false));
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.GetAccessControlAsync("trusted/directory", true))
+            _azureDataLakeStorage.Setup(x => x.GetAccessControlAsync("trusted/directory", true, It.IsAny<CancellationToken>()))
                 .Returns(Task.FromResult(new AccessControl("$superuser", "$superuser", "rwxr-x---",
                     "user::rwx,group::r-x,other::---")));
 
@@ -651,7 +677,7 @@ namespace ApplyPosixPermissions.Tests
         {
             var expected = new Exception("Test exception.");
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            _azureDataLakeStorage.Setup(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .Throws(expected);
 
             try
@@ -670,7 +696,7 @@ namespace ApplyPosixPermissions.Tests
         {
             var expected = new Exception("Test exception.");
 
-            _azureDataLakeGen2BlobStorage.Setup(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            _azureDataLakeStorage.Setup(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .Throws(expected);
 
             try

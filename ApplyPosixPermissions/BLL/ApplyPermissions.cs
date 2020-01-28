@@ -3,7 +3,6 @@ using ApplyPosixPermissions.Models;
 using ApplyPosixPermissions.Wrappers;
 using NLog;
 using Storage.Net;
-using Storage.Net.Microsoft.Azure.DataLake.Store.Gen2;
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -14,17 +13,16 @@ namespace ApplyPosixPermissions.BLL
     public class ApplyPermissions
     {
         private readonly ILogger _logger;
-        private readonly IAzureDataLakeGen2BlobStorageWrapper _storage;
+        private readonly IAzureDataLakeStorageWrapper _storage;
 
         public ApplyPermissions(string accountName, string accessKey)
         {
-            var client = (IAzureDataLakeGen2BlobStorage)StorageFactory.Blobs.AzureDataLakeGen2StoreBySharedAccessKey(accountName, accessKey);
-            var wrapper = new AzureDataLakeGen2BlobStorageWrapper(client);
-            _storage = new RetryableAzureDataLakeGen2BlobStorageWrapper(wrapper);
+            var client = StorageFactory.Blobs.AzureDataLakeStorageWithSharedKey(accountName, accessKey);
+            _storage = new RetryableAzureDataLakeStorageWrapper(client);
             _logger = LogManager.GetCurrentClassLogger();
         }
 
-        public ApplyPermissions(IAzureDataLakeGen2BlobStorageWrapper storage, ILogger logger)
+        public ApplyPermissions(IAzureDataLakeStorageWrapper storage, ILogger logger)
         {
             _storage = storage;
             _logger = logger;
